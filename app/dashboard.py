@@ -286,6 +286,108 @@ def get_dashboard_html() -> str:
       to { opacity: 1; transform: translateY(0); }
     }
 
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 0 0 0 rgba(241,110,114,.55); }
+      70%  { box-shadow: 0 0 0 8px rgba(241,110,114,0); }
+      100% { box-shadow: 0 0 0 0 rgba(241,110,114,0); }
+    }
+
+    /* ── Alert panel ───────────────────────────── */
+    .alert-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .alert-card {
+      border: 1px solid #2f455f;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(150deg, #112236cc, #0d1b2acc);
+      display: grid;
+      gap: 8px;
+      transition: border-color 220ms ease;
+    }
+
+    .alert-card.firing {
+      border-color: #f16e72;
+      background: linear-gradient(150deg, #2a0d1099, #1a0a0ecc);
+      animation: pulse-ring 1.8s ease-out infinite;
+    }
+
+    .alert-card.ok {
+      border-color: #2c5a46;
+      background: linear-gradient(150deg, #0d1f1799, #0a1a12cc);
+    }
+
+    .alert-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .alert-name {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--txt-0);
+    }
+
+    .alert-badge {
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .alert-badge.firing {
+      background: var(--err);
+      color: #1a0204;
+    }
+
+    .alert-badge.ok {
+      background: var(--ok);
+      color: #061209;
+    }
+
+    .alert-meta {
+      font-size: 0.78rem;
+      color: var(--txt-1);
+      display: grid;
+      gap: 4px;
+    }
+
+    .alert-meta span {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .alert-meta a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.76rem;
+    }
+
+    .alert-meta a:hover {
+      text-decoration: underline;
+    }
+
+    .alert-impact {
+      font-size: 0.79rem;
+      color: var(--txt-1);
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .alert-grid { grid-template-columns: 1fr; }
+    }
+
     @media (max-width: 1180px) {
       .intent-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -422,15 +524,21 @@ def get_dashboard_html() -> str:
       </article>
 
       <article class="wide">
-        <h3 class="section-title">Incident Control</h3>
-        <div id="incident-state" class="chips"></div>
+        <h3 class="section-title">🔔 Alerts &amp; Incident Control</h3>
+        <p class="muted" style="margin-bottom:12px">Live evaluation against <code>config/alert_rules.yaml</code> thresholds. Click a scenario button to inject or clear the failure.</p>
+
+        <!-- Alert Cards -->
+        <div id="alert-cards" class="alert-grid"></div>
+
+        <!-- Incident toggles -->
+        <div id="incident-state" class="chips" style="margin-bottom:10px"></div>
         <div class="incidents">
-          <button data-incident="rag_slow" data-mode="enable">Enable rag_slow</button>
-          <button data-incident="rag_slow" data-mode="disable">Disable rag_slow</button>
-          <button data-incident="tool_fail" data-mode="enable">Enable tool_fail</button>
-          <button data-incident="tool_fail" data-mode="disable">Disable tool_fail</button>
-          <button data-incident="cost_spike" data-mode="enable">Enable cost_spike</button>
-          <button data-incident="cost_spike" data-mode="disable">Disable cost_spike</button>
+          <button data-incident="rag_slow"   data-mode="enable"  title="Inject slow RAG (P2 high_latency_p95)">🟠 Enable rag_slow</button>
+          <button data-incident="rag_slow"   data-mode="disable" title="Clear slow RAG">⬛ Disable rag_slow</button>
+          <button data-incident="tool_fail"  data-mode="enable"  title="Inject tool failures (P1 high_error_rate)">🔴 Enable tool_fail</button>
+          <button data-incident="tool_fail"  data-mode="disable" title="Clear tool failures">⬛ Disable tool_fail</button>
+          <button data-incident="cost_spike" data-mode="enable"  title="Inject token cost spike (P2 cost_budget_spike)">🟠 Enable cost_spike</button>
+          <button data-incident="cost_spike" data-mode="disable" title="Clear cost spike">⬛ Disable cost_spike</button>
         </div>
       </article>
 
@@ -520,6 +628,72 @@ def get_dashboard_html() -> str:
       document.getElementById("spark-cost").setAttribute("points", polylinePoints(historyState.cost));
       document.getElementById("spark-tokens").setAttribute("points", polylinePoints(historyState.tokens));
       document.getElementById("spark-quality").setAttribute("points", polylinePoints(historyState.quality));
+    }
+
+    // ── Alert rule definitions (mirrors config/alert_rules.yaml) ──────────────
+    const ALERT_RULES = [
+      {
+        name: "high_latency_p95",
+        severity: "P2",
+        incident: "rag_slow",
+        condition: "latency_p95_ms > 5 000 ms",
+        runbook: "docs/incident_runbook.md#case-1-rag-slow",
+        impact: "Customers wait too long for refund / order-status answers.",
+        check: (m) => (m.latency_p95 || 0) > 5000,
+        current: (m) => `P95 ${Math.round(m.latency_p95 || 0)} ms`,
+        target: "≤ 5 000 ms"
+      },
+      {
+        name: "high_error_rate",
+        severity: "P1",
+        incident: "tool_fail",
+        condition: "error_rate_pct > 5 %",
+        runbook: "docs/incident_runbook.md#case-2-tool-fail",
+        impact: "Chatbot fails to answer refund, shipping, or payment requests.",
+        check: (m) => (m.error_rate_pct || 0) > 5,
+        current: (m) => `${formatFloat(m.error_rate_pct || 0, 2)} %`,
+        target: "≤ 5 %"
+      },
+      {
+        name: "cost_budget_spike",
+        severity: "P2",
+        incident: "cost_spike",
+        condition: "daily_cost_usd > $2.50",
+        runbook: "docs/incident_runbook.md#case-3-cost-spike",
+        impact: "Support-bot operating cost spikes above the daily budget.",
+        check: (m) => (m.total_cost_usd || 0) > 2.50,
+        current: (m) => `$${formatFloat(m.total_cost_usd || 0, 4)}`,
+        target: "≤ $2.50"
+      }
+    ];
+
+    function renderAlertCards(metrics, incidents) {
+      const container = document.getElementById("alert-cards");
+      container.innerHTML = "";
+      ALERT_RULES.forEach((rule) => {
+        const firing = rule.check(metrics);
+        const incidentActive = (incidents || {})[rule.incident] || false;
+        const statusText = firing ? "FIRING" : "OK";
+        const sevColor = rule.severity === "P1" ? "#f16e72" : "#f5ba58";
+        const card = document.createElement("div");
+        card.className = `alert-card ${firing ? "firing" : "ok"}`;
+        card.innerHTML = `
+          <div class="alert-header">
+            <span class="alert-name">${rule.name}</span>
+            <span class="alert-badge ${firing ? "firing" : "ok"}">${firing ? "🔴" : "🟢"} ${statusText}</span>
+          </div>
+          <div class="alert-meta">
+            <span><b>Severity</b><span style="color:${sevColor};font-weight:700">${rule.severity}</span></span>
+            <span><b>Condition</b><span>${rule.condition}</span></span>
+            <span><b>Current</b><span style="color:${firing ? "var(--err)" : "var(--ok)"};font-weight:600">${rule.current(metrics)}</span></span>
+            <span><b>Target</b><span>${rule.target}</span></span>
+            <span><b>Incident</b><span style="color:${incidentActive ? "var(--err)" : "var(--ok)"};font-weight:600">${rule.incident}: ${incidentActive ? "ON" : "OFF"}</span></span>
+            <span><a href="/${rule.runbook}" target="_blank">📖 Open Runbook →</a><span></span></span>
+          </div>
+          <p class="alert-impact">${rule.impact}</p>
+        `;
+        container.appendChild(card);
+      });
     }
 
     function renderIncidentState(incidents) {
@@ -710,6 +884,7 @@ def get_dashboard_html() -> str:
         renderSloStatus(metrics.slo_status || {});
         renderBusinessSummary(metrics.business_summary || {});
         renderIntentCards(intentMetrics);
+        renderAlertCards(metrics, health.incidents || {});
         renderIncidentState(health.incidents || {});
         renderLogs(logs.items || []);
 

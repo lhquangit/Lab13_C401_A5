@@ -3,12 +3,12 @@
 > **Instruction**: Fill in all sections below. This report is designed to be parsed by an automated grading assistant. Ensure all tags (e.g., `[GROUP_NAME]`) are preserved.
 
 ## 1. Team Metadata
-- [GROUP_NAME]: 
+- [GROUP_NAME]: Lab13_C401_A5
 - [REPO_URL]: 
 - [MEMBERS]:
   - Member A: [Name] | Role: Logging & PII
   - Member B: [Name] | Role: Tracing & Enrichment
-  - Member C: [Name] | Role: SLO & Alerts
+  - Member C: Nguyễn Đức Hải - 2A202600149 | Role: SLO & Alerts
   - Member D: [Name] | Role: Load Test & Dashboard
   - Member E: [Name] | Role: Demo & Report
 
@@ -34,22 +34,22 @@
 - [SLO_TABLE]:
 | SLI | Target | Window | Current Value |
 |---|---:|---|---:|
-| Latency P95 | < 3000ms | 28d | |
-| Error Rate | < 2% | 28d | |
-| Cost Budget | < $2.5/day | 1d | |
+| Latency P95 | < 3000ms | 28d | 0.0ms |
+| Error Rate | < 2% | 28d | 0.0% |
+| Cost Budget | < $2.5/day | 1d | $0.0 |
 
 ### 3.3 Alerts & Runbook
-- [ALERT_RULES_SCREENSHOT]: [Path to image]
-- [SAMPLE_RUNBOOK_LINK]: [docs/alerts.md#L...]
+- [ALERT_RULES_SCREENSHOT]: docs/Alerts & Incident Control.png
+- [SAMPLE_RUNBOOK_LINK]: docs/incident_runbook.md
 
 ---
 
 ## 4. Incident Response (Group)
-- [SCENARIO_NAME]: (e.g., rag_slow)
-- [SYMPTOMS_OBSERVED]: 
-- [ROOT_CAUSE_PROVED_BY]: (List specific Trace ID or Log Line)
-- [FIX_ACTION]: 
-- [PREVENTIVE_MEASURE]: 
+- [SCENARIO_NAME]: tool_fail
+- [SYMPTOMS_OBSERVED]: Error rate spiked to 50% (SLO Breached), API returned HTTP 500 errors for payment and refund requests, and Errors SLO chip turned red on the dashboard.
+- [ROOT_CAUSE_PROVED_BY]: Logs showed "tool_call_failed" with "RuntimeError" on "rag.retrieve" and "request_failed" with HTTP 500.
+- [FIX_ACTION]: Disabled the "tool_fail" scenario using the inject_incident.py script.
+- [PREVENTIVE_MEASURE]: Implemented retry logic (3x with backoff) and circuit breakers for retrieval tools to ensure graceful degradation.
 
 ---
 
@@ -63,9 +63,9 @@
 - [TASKS_COMPLETED]: 
 - [EVIDENCE_LINK]: 
 
-### [MEMBER_C_NAME]
-- [TASKS_COMPLETED]: 
-- [EVIDENCE_LINK]: 
+### Nguyễn Đức Hải - 2A202600149
+- [TASKS_COMPLETED]: Configured 3 alert rules (high_latency_p95, high_error_rate, cost_budget_spike), implemented the detailed incident runbook, and verified incident scenarios using the injection script.
+- [EVIDENCE_LINK]: docs/alerts_evidences.txt
 
 ### [MEMBER_D_NAME]
 - [TASKS_COMPLETED]: 
