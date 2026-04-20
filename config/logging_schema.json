@@ -12,6 +12,7 @@
     "user_id_hash": {"type": ["string", "null"]},
     "session_id": {"type": ["string", "null"]},
     "feature": {"type": ["string", "null"]},
+    "intent": {"type": ["string", "null"]},
     "model": {"type": ["string", "null"]},
     "latency_ms": {"type": ["integer", "null"]},
     "tokens_in": {"type": ["integer", "null"]},

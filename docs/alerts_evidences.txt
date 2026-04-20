@@ -1,0 +1,140 @@
+PS D:\New folder\Lab13-Observability> python scripts/inject_incident.py --status
+
++==========================+
+|  Current Incident State  |
++==========================+
+  [OFF]  rag_slow
+  [OFF]  tool_fail
+  [OFF]  cost_spike
+
+  -- Live Metrics --
+  [OK ]  latency_p95_ms             current=0.0  target=3000.0
+  [OK ]  error_rate_pct             current=0.0  target=2.0   
+  [OK ]  daily_cost_usd             current=0  target=2.5     
+  [ERR]  quality_score_avg          current=0.0  target=0.75  
+PS D:\New folder\Lab13-Observability> python scripts/inject_incident.py --scenario rag_slow
+
++===============================+
+|  Enabling Incident: rag_slow  |
++===============================+
+
+  [Scenario]    rag_slow
+  [Alert]       high_latency_p95  [P2]
+  [Impact]      Customers wait too long for refund / order-status answers.
+  [Runbook]     docs/incident_runbook.md#case-1-rag-slow
+  [Description] RAG retrieval latency spike — P95 climbs above 5 000 ms.
+
+  [ON]  Incident 'rag_slow' is now ACTIVE
+  Incidents: {
+    "rag_slow": true,
+    "tool_fail": false,
+}
+
+  Sending 3 sample queries to trigger alert...
+    [OK ]  [returns] Tôi muốn hoàn tiền đơn hàng #12345
+           -> Starter answer. Teams should improve this output logic and a...
+    [OK ]  [order_status] Đơn hàng của tôi đang ở đâu?
+           -> Starter answer. Teams should improve this output logic and a...
+    [OK ]  [shipping] Phí vận chuyển bao nhiêu?
+           -> Starter answer. Teams should improve this output logic and a...
+
+  [Verify] Alert: high_latency_p95 (P2)
+  Condition  : latency_p95_ms > 5000 ms for 30 min
+  SLO status : [OK]  (current=2656.0, target=3000.0)
+  Expected   : tool_call_succeeded (rag.retrieve) with high latency_ms
+
+  Open dashboard -> http://127.0.0.1:8000/dashboard
+  Follow runbook -> docs/incident_runbook.md#case-1-rag-slow
+PS D:\New folder\Lab13-Observability> python scripts/inject_incident.py --scenario tool_fail    
+
++================================+
+|  Enabling Incident: tool_fail  |
++================================+
+
+  [Scenario]    tool_fail
+  [Alert]       high_error_rate  [P1]
+  [Impact]      Chatbot fails to answer refund, shipping, or payment requests.
+  [Runbook]     docs/incident_runbook.md#case-2-tool-fail
+  [Description] Tool / retrieval failure causing 500 errors — error_rate_pct > 5 %.
+
+  [ON]  Incident 'tool_fail' is now ACTIVE
+    "rag_slow": true,
+    "tool_fail": true,
+    "cost_spike": false
+}
+
+  Sending 3 sample queries to trigger alert...
+    [ERR HTTP 500]  [payment] Tôi bị trừ tiền nhưng đơn hàng chưa xác nhận
+    [ERR HTTP 500]  [returns] Hoàn tiền bị từ chối, tôi phải làm gì?
+    [ERR HTTP 500]  [support] Tôi cần hỗ trợ gấp!
+
+  [Verify] Alert: high_error_rate (P1)
+  Condition  : error_rate_pct > 5 % for 5 min
+  SLO status : [BREACHED]  (current=50.0, target=2.0)
+  Expected   : tool_call_failed + request_failed with error_type=RuntimeError
+
+  Open dashboard -> http://127.0.0.1:8000/dashboard
+  Follow runbook -> docs/incident_runbook.md#case-2-tool-fail
+PS D:\New folder\Lab13-Observability> python scripts/inject_incident.py --scenario cost_spike   
+
++=================================+
+|  Enabling Incident: cost_spike  |
++=================================+
+
+  [Scenario]    cost_spike
+  [Alert]       cost_budget_spike  [P2]
+  [Impact]      Support-bot operating cost spikes above the daily budget.
+  [Runbook]     docs/incident_runbook.md#case-3-cost-spike
+  [Description] LLM token output spike — hourly cost rises above 2× baseline.
+
+  [ON]  Incident 'cost_spike' is now ACTIVE
+  Incidents: {
+    "tool_fail": true,
+    "cost_spike": true
+}
+
+  Sending 3 sample queries to trigger alert...
+    [ERR HTTP 500]  [payment] Giải thích chi tiết chính sách hoàn tiền
+    [ERR HTTP 500]  [shipping] Liệt kê tất cả tùy chọn giao hàng và chi phí
+    [ERR HTTP 500]  [returns] Quy trình đổi trả hàng như thế nào?
+  [Verify] Alert: cost_budget_spike (P2)
+  Condition  : hourly_cost_usd > 2× baseline for 15 min
+  SLO status : [OK]  (current=0.0064, target=2.5)
+  Expected   : tool_call_succeeded (llm.generate) with high tokens_out
+
+  Open dashboard -> http://127.0.0.1:8000/dashboard
+  Follow runbook -> docs/incident_runbook.md#case-3-cost-spike
+python scripts/inject_incident.py --scenario rag_slow --disable; python scripts/inject_incident.py --scenario tool_fail --disable; python scripts/inject_incident.py --scenario cost_spike --disable
+
++================================+
+|  Disabling Incident: rag_slow  |
++================================+
+
+  [OFF] Incident 'rag_slow' is now INACTIVE
+  Incidents: {
+    "rag_slow": false,
+    "tool_fail": true,
+    "cost_spike": true
+}
+
++=================================+
+|  Disabling Incident: tool_fail  |
++=================================+
+
+  [OFF] Incident 'tool_fail' is now INACTIVE
+  Incidents: {
+    "rag_slow": false,
+    "tool_fail": false,
+    "cost_spike": true
+}
+
++==================================+
+|  Disabling Incident: cost_spike  |
++==================================+
+
+  [OFF] Incident 'cost_spike' is now INACTIVE
+  Incidents: {
+    "rag_slow": false,
+    "tool_fail": false,
+    "cost_spike": false
+}

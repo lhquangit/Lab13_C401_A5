@@ -1,19 +1,113 @@
+# ============================================================
+#  Alert Rules — CSKH E-Commerce Chatbot Observability Lab
+#  Mapped to: incidents.py STATE keys + docs/incident_runbook.md
+# ============================================================
+
 alerts:
+
+  # ────────────────────────────────────────────────────────
+  # CASE 1 — RAG Slow  (rag_slow)
+  # ────────────────────────────────────────────────────────
   - name: high_latency_p95
     severity: P2
     condition: latency_p95_ms > 5000 for 30m
     type: symptom-based
-    owner: team-oncall
-    runbook: docs/alerts.md#1-high-latency-p95
+    owner: cskh-bot-oncall
+    runbook: docs/incident_runbook.md#case-1-rag-slow
+    slo_link: config/slo.yaml#latency_p95_ms
+    business_impact: >
+      Customers wait too long for refund or order-status answers.
+      Abandonment rate rises and CSAT score drops.
+    mapped_incident: rag_slow
+    labels:
+      team: platform
+      domain: retrieval
+      intent_affected: "refund, order_status, shipping"
+    thresholds:
+      warning_ms: 3000      # SLO objective — chip turns yellow
+      critical_ms: 5000     # Alert fires   — chip turns red
+    evaluation_window: 30m
+    resolution_condition: latency_p95_ms <= 3000 for 10m
+    verification_steps:
+      - "Dashboard latency panel: confirm P95/P99 climbing"
+      - "Trace waterfall: compare rag.retrieve vs llm.generate span times"
+      - "Logs: search for tool_call_succeeded with high latency_ms on rag.retrieve"
+    immediate_mitigation:
+      - "python scripts/inject_incident.py --scenario rag_slow --disable"
+      - "Switch to lightweight retrieval path or cached policy answers"
+      - "Reduce maximum customer prompt length while incident is active"
+    preventive_measure: >
+      Cache common policy answers; add a retrieval-latency SLO tighter than the
+      end-to-end latency SLO so spikes are caught before users feel them.
+
+  # ────────────────────────────────────────────────────────
+  # CASE 2 — Tool Fail  (tool_fail)
+  # ────────────────────────────────────────────────────────
   - name: high_error_rate
     severity: P1
     condition: error_rate_pct > 5 for 5m
     type: symptom-based
-    owner: team-oncall
-    runbook: docs/alerts.md#2-high-error-rate
+    owner: cskh-bot-oncall
+    runbook: docs/incident_runbook.md#case-2-tool-fail
+    slo_link: config/slo.yaml#error_rate_pct
+    business_impact: >
+      Chatbot returns HTTP 500 for refund, shipping, and payment requests.
+      Revenue-impacting flows become completely unavailable.
+    mapped_incident: tool_fail
+    labels:
+      team: platform
+      domain: agent-tools
+      intent_affected: "refund, payment, general_support"
+    thresholds:
+      warning_pct: 2        # SLO objective — chip turns yellow
+      critical_pct: 5       # Alert fires   — chip turns red
+    evaluation_window: 5m
+    resolution_condition: error_rate_pct <= 2 for 5m
+    verification_steps:
+      - "Dashboard error-rate panel: confirm spike > 5 %"
+      - "Logs: filter for event=request_failed AND event=tool_call_failed"
+      - "Trace: open a failed trace and inspect the rag.retrieve span"
+      - "Confirm error_type=RuntimeError in log payload"
+    immediate_mitigation:
+      - "python scripts/inject_incident.py --scenario tool_fail --disable"
+      - "Switch chatbot to graceful-fallback static response mode"
+      - "Rollback last deployment if error started after a new release"
+    preventive_measure: >
+      Add retry logic (3×, exponential back-off) and a circuit breaker around
+      retrieval dependencies; unit-test all tool failure paths.
+
+  # ────────────────────────────────────────────────────────
+  # CASE 3 — Cost Spike  (cost_spike)
+  # ────────────────────────────────────────────────────────
   - name: cost_budget_spike
     severity: P2
     condition: hourly_cost_usd > 2x_baseline for 15m
     type: symptom-based
-    owner: finops-owner
-    runbook: docs/alerts.md#3-cost-budget-spike
+    owner: cskh-bot-finops
+    runbook: docs/incident_runbook.md#case-3-cost-spike
+    slo_link: config/slo.yaml#daily_cost_usd
+    business_impact: >
+      Support-bot operating cost spikes above the daily budget ($2.50/day).
+      Uncontrolled spend may exhaust monthly LLM credit.
+    mapped_incident: cost_spike
+    labels:
+      team: finops
+      domain: llm-inference
+      intent_affected: "payment, refund, shipping"
+    thresholds:
+      daily_budget_usd: 2.50   # SLO objective — chip turns yellow/red
+      hourly_burn_rate_usd: 0.104  # 2.50 / 24 h — baseline per hour
+    evaluation_window: 15m
+    resolution_condition: hourly_cost_usd <= 1x_baseline for 10m
+    verification_steps:
+      - "Dashboard cost + tokens panels: confirm jump while traffic stays flat"
+      - "Trace: inspect tokens_out for llm.generate spans"
+      - "Logs: search tool_call_succeeded (llm.generate) for high tokens_out"
+      - "Confirm daily_cost_usd SLO chip is red on dashboard"
+    immediate_mitigation:
+      - "python scripts/inject_incident.py --scenario cost_spike --disable"
+      - "Shorten system-prompt and cap max_tokens_per_response to 256"
+      - "Route simple intent (general_support) to template response, skip LLM"
+    preventive_measure: >
+      Enforce per-intent token budgets; alert on output-token anomalies before
+      the daily budget is breached; use a cheaper model tier for low-complexity intents.

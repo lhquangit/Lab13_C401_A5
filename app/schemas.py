@@ -33,6 +33,7 @@ class LogRecord(BaseModel):
     user_id_hash: str | None = None
     session_id: str | None = None
     feature: str | None = None
+    intent: str | None = None
     model: str | None = None
     latency_ms: int | None = None
     tokens_in: int | None = None
