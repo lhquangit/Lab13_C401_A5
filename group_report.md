@@ -65,7 +65,7 @@
 
 ### Nguyễn Đức Hải - 2A202600149
 - [TASKS_COMPLETED]: Configured 3 alert rules (high_latency_p95, high_error_rate, cost_budget_spike), implemented the detailed incident runbook, and verified incident scenarios using the injection script.
-- [EVIDENCE_LINK](alerts_evidences.txt) ![alt text](<Alerts & Incident Control.png>)
+- [EVIDENCE_LINK](docs/alerts_evidences.txt) ![alt text](<docs/Alerts & Incident Control.png>)
 
 ### Lâm
 - [TASKS_COMPLETED]: Checked metrics.py, extracted data from /metrics, and built the 6-panel dashboard according to dashboard-spec.md.
