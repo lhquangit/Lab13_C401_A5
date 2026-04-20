@@ -65,7 +65,8 @@
 
 ### Nguyễn Đức Hải - 2A202600149
 - [TASKS_COMPLETED]: Configured 3 alert rules (high_latency_p95, high_error_rate, cost_budget_spike), implemented the detailed incident runbook, and verified incident scenarios using the injection script.
-- [EVIDENCE_LINK]: docs/alerts_evidences.txt
+
+- [EVIDENCE_LINK](alerts_evidences.txt) ![alt text](<Alerts & Incident Control.png>)
 
 ### [MEMBER_D_NAME]
 - [TASKS_COMPLETED]: 
