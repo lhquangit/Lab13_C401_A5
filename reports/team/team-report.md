@@ -5,11 +5,10 @@
 ## 1. Team Metadata
 
 - [MEMBERS]:
-  - Member A: [Name] | Role: Logging & PII
-  - Member B: [Name] | Role: Tracing & Enrichment
-  - Member C: [Name] | Role: SLO & Alerts
-  - Member D: [Name] | Role: Load Test & Dashboard
-  - Member E: [Name] | Role: Demo & Report
+  - Lê Hồng Quân | Role: Logging & PII & Demo & Report
+  - Đoàn Sĩ Linh & Dương Trung Hiếu: [Name] | Role: Tracing & Enrichment
+  - Nguyễn Đức Hải: [Name] | Role: SLO & Alerts
+  - Phạm Thanh Lam: [Name] | Role: Load Test & Dashboard
 
 Ghi chú nhóm:
 
@@ -50,8 +49,6 @@ Diễn giải kỹ thuật:
 
 ### 3.2 Dashboard & SLOs
 
-- 
-
 - [SLO_TABLE]:
 
   | SLI         | Target     | Window | Current Value       |
@@ -78,10 +75,6 @@ Ngoài 6 panel chính, dashboard còn có:
 
 ### 3.3 Alerts & Runbook
 
-- 
-
-- 
-
 Alert hiện có trong hệ thống:
 
 - `high_latency_p95` -> mapped incident: `rag_slow`
@@ -97,8 +90,6 @@ Nguồn cấu hình:
 
 ## 4. Incident Response (Group)
 
-- 
-
 - [SYMPTOMS_OBSERVED]: Dashboard cho thấy `latency_p95` tăng mạnh, request vẫn trả về thành công nhưng chậm rõ rệt, và trace waterfall thể hiện span retrieve kéo dài bất thường.
 - [ROOT_CAUSE_PROVED_BY]: Trace waterfall trong Langfuse với span `rag.retrieve` dài nhất; log `tool_call_succeeded` của `rag.retrieve` có `latency_ms` tăng cao; incident toggle `rag_slow` ở `/health` đang bật.
 - [FIX_ACTION]: Tắt incident `rag_slow`, giảm thời gian retrieve giả lập, và kiểm tra lại latency bằng dashboard + `/metrics`.
@@ -113,29 +104,27 @@ Incident bổ sung nên demo:
 
 ## 5. Individual Contributions & Evidence
 
-### [MEMBER_A_NAME]
+### [Lê Hồng Quân]
 
-- [TASKS_COMPLETED]: Hoàn thiện structured logging, `correlation_id`, PII scrubbing, và xác minh `validate_logs.py`
-- [EVIDENCE_LINK]: TBD commit/PR link
+- [TASKS_COMPLETED]: 
+  - Hoàn thiện structured logging, `correlation_id`, PII scrubbing, và xác minh `validate_logs.py`
+  - Chuẩn bị test data, sinh traces/logs/evidence, tổng hợp báo cáo nhóm theo blueprint
+- [EVIDENCE_LINK]: 
+  - TBD commit/PR link
 
-### [MEMBER_B_NAME]
+### [Đoàn Sĩ Linh & Dương Trung Hiếu]
 
 - [TASKS_COMPLETED]: Tích hợp Langfuse tracing, nested spans cho `rag.retrieve` và `llm.generate`, thu thập trace waterfall
 - [EVIDENCE_LINK]: TBD commit/PR link
 
-### [MEMBER_C_NAME]
+### [Nguyễn Đức Hải]
 
 - [TASKS_COMPLETED]: Chuẩn hóa SLO, xây dựng `alert_rules.yaml`, và viết runbook trong `docs/alerts.md`
 - [EVIDENCE_LINK]: TBD commit/PR link
 
-### [MEMBER_D_NAME]
+### [Phạm Thanh Lam]
 
 - [TASKS_COMPLETED]: Kiểm tra `/metrics`, hoàn thiện dashboard 6 panel, chuẩn bị screenshot dashboard và business breakdown
-- [EVIDENCE_LINK]: TBD commit/PR link
-
-### [MEMBER_E_NAME]
-
-- [TASKS_COMPLETED]: Chuẩn bị test data, sinh traces/logs/evidence, tổng hợp báo cáo nhóm theo blueprint
 - [EVIDENCE_LINK]: TBD commit/PR link
 
 ---
@@ -162,6 +151,50 @@ Tập sample queries:
 
 - [sample_queries.jsonl](/Users/quanliver/Projects/AI_Vin_Learner/Lab13-Observability_v1/data/sample_queries.jsonl)
 
+Mẫu request chuẩn dùng trong report và demo:
+
+```json
+{
+  "user_id": "u_team_01",
+  "session_id": "s_demo_01",
+  "feature": "support",
+  "message": "Tôi cần hỗ trợ sau mua hàng, shop có các kênh CSKH nào?",
+  "telemetry_override": {
+    "latency_ms": null,
+    "rag_latency_ms": null,
+    "llm_latency_ms": null,
+    "tokens_in": null,
+    "tokens_out": null,
+    "cost_usd": null,
+    "quality_score": null
+  },
+  "force_error_status": null,
+  "force_error_message": null
+}
+```
+
+Mẫu request lỗi để kiểm tra `Error Rate` và alert:
+
+```json
+{
+  "user_id": "u_team_02",
+  "session_id": "s_demo_02",
+  "feature": "support",
+  "message": "Tôi muốn kiểm tra cơ chế xử lý lỗi bad request.",
+  "telemetry_override": {
+    "latency_ms": null,
+    "rag_latency_ms": null,
+    "llm_latency_ms": null,
+    "tokens_in": null,
+    "tokens_out": null,
+    "cost_usd": null,
+    "quality_score": null
+  },
+  "force_error_status": 400,
+  "force_error_message": "Forced HTTP 400 for dashboard testing"
+}
+```
+
 Lệnh gợi ý để hoàn thiện evidence:
 
 1. `uvicorn app.main:app --reload`
@@ -169,4 +202,3 @@ Lệnh gợi ý để hoàn thiện evidence:
 3. `python scripts/validate_logs.py`
 4. `python scripts/inject_incident.py --scenario rag_slow`
 5. Chụp dashboard, log JSON, PII redaction, trace list, trace waterfall, alert rules
-

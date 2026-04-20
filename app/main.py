@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from structlog.contextvars import bind_contextvars
 
@@ -13,20 +16,60 @@ from .agent import LabAgent
 from .dashboard import get_dashboard_html
 from .incidents import disable, enable, status
 from .logging_config import configure_logging, get_logger
-from .metrics import record_error, snapshot
+from .metrics import record_error, record_request, snapshot
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
 from .text_utils import normalize_text
-from .tracing import tracing_enabled
-
-load_dotenv()
+from .tracing import create_trace_id_from_seed, flush_langfuse, tracing_enabled
 
 configure_logging()
 log = get_logger()
 app = FastAPI(title="Day 13 Observability Lab")
 app.add_middleware(CorrelationIdMiddleware)
 agent = LabAgent()
+
+
+def _request_latency_ms(request: Request) -> int:
+    started = getattr(request.state, "request_started", None)
+    if started is None:
+        return 0
+    try:
+        import time
+
+        return int((time.perf_counter() - started) * 1000)
+    except Exception:
+        return 0
+
+
+def _record_failed_request(
+    request: Request,
+    *,
+    error_type: str,
+    status_code: int,
+    intent: str | None = None,
+    feature: str | None = None,
+) -> None:
+    if getattr(request.state, "metrics_recorded", False):
+        return
+
+    if request.url.path != "/chat":
+        return
+
+    resolved_intent = intent or getattr(request.state, "intent", "unknown")
+    resolved_feature = feature or getattr(request.state, "feature", "unknown")
+    record_request(
+        latency_ms=_request_latency_ms(request),
+        cost_usd=0.0,
+        tokens_in=0,
+        tokens_out=0,
+        quality_score=0.0,
+        intent=resolved_intent,
+        feature=resolved_feature,
+        success=False,
+    )
+    record_error(error_type, intent=resolved_intent)
+    request.state.metrics_recorded = True
 
 
 def infer_intent(feature: str, message: str) -> str:
@@ -47,9 +90,6 @@ def infer_intent(feature: str, message: str) -> str:
         return "shipping"
     if feature_norm in {"payment", "billing", "invoice", "thanh_toan", "thanh toan", "hoa_don", "hoa don"}:
         return "payment"
-    if feature_norm in {"support", "ho_tro", "ho tro", "cskh"}:
-        return "general_support"
-
     text = normalize_text(message)
     if any(keyword in text for keyword in ["refund", "return", "hoan tien", "doi tra", "tra hang", "hoan tra"]):
         return "refund"
@@ -61,6 +101,8 @@ def infer_intent(feature: str, message: str) -> str:
         return "shipping"
     if any(keyword in text for keyword in ["payment", "invoice", "charged", "thanh toan", "hoa don", "bi tru tien", "the tin dung"]):
         return "payment"
+    if feature_norm in {"support", "ho_tro", "ho tro", "cskh"}:
+        return "general_support"
     return "general_support"
 
 
@@ -91,6 +133,11 @@ async def startup() -> None:
     )
 
 
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    flush_langfuse()
+
+
 @app.get("/health")
 async def health() -> dict:
     return {"ok": True, "tracing_enabled": tracing_enabled(), "incidents": status()}
@@ -112,9 +159,60 @@ async def dashboard() -> str:
     return get_dashboard_html()
 
 
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    _record_failed_request(
+        request,
+        error_type="HTTP_422",
+        status_code=422,
+        intent="unknown",
+        feature="validation",
+    )
+    log.error(
+        "request_validation_failed",
+        service="api",
+        error_type="RequestValidationError",
+        payload={"path": request.url.path, "detail": exc.errors()},
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    error_type = f"HTTP_{exc.status_code}"
+    _record_failed_request(request, error_type=error_type, status_code=exc.status_code)
+    if request.url.path == "/chat":
+        log.warning(
+            "request_http_error",
+            service="api",
+            error_type=error_type,
+            payload={"path": request.url.path, "detail": str(exc.detail)},
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    _record_failed_request(
+        request,
+        error_type="HTTP_500",
+        status_code=500,
+    )
+    log.error(
+        "request_unhandled_error",
+        service="api",
+        error_type=type(exc).__name__,
+        payload={"path": request.url.path, "detail": str(exc)},
+    )
+    return JSONResponse(status_code=500, content={"detail": "InternalServerError"})
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest) -> ChatResponse:
     intent = infer_intent(body.feature, body.message)
+    langfuse_trace_id = create_trace_id_from_seed(getattr(request.state, "correlation_id", None))
+    request.state.intent = intent
+    request.state.feature = body.feature
     bind_contextvars(
         user_id_hash=hash_user_id(body.user_id),
         session_id=body.session_id,
@@ -133,46 +231,47 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             "domain": "ecommerce_cskh",
         },
     )
-    try:
-        result = agent.run(
-            user_id=body.user_id,
-            feature=body.feature,
-            session_id=body.session_id,
-            intent=intent,
-            message=body.message,
+    if body.force_error_status is not None:
+        raise HTTPException(
+            status_code=body.force_error_status,
+            detail=body.force_error_message or f"Forced HTTP {body.force_error_status} for testing",
         )
-        log.info(
-            "response_sent",
-            service="api",
-            latency_ms=result.latency_ms,
-            tokens_in=result.tokens_in,
-            tokens_out=result.tokens_out,
-            cost_usd=result.cost_usd,
-            payload={"intent": intent, "answer_preview": summarize_text(result.answer)},
-        )
-        return ChatResponse(
-            answer=result.answer,
-            correlation_id=request.state.correlation_id,
-            latency_ms=result.latency_ms,
-            tokens_in=result.tokens_in,
-            tokens_out=result.tokens_out,
-            cost_usd=result.cost_usd,
-            quality_score=result.quality_score,
-        )
-    except Exception as exc:  # pragma: no cover
-        error_type = type(exc).__name__
-        record_error(error_type, intent=intent)
-        log.error(
-            "request_failed",
-            service="api",
-            error_type=error_type,
-            payload={
-                "intent": intent,
-                "detail": str(exc),
-                "message_preview": summarize_text(body.message),
-            },
-        )
-        raise HTTPException(status_code=500, detail=error_type) from exc
+
+    result = agent.run(
+        user_id=body.user_id,
+        feature=body.feature,
+        session_id=body.session_id,
+        intent=intent,
+        message=body.message,
+        telemetry_override=body.telemetry_override,
+        correlation_id=request.state.correlation_id,
+        langfuse_trace_id=langfuse_trace_id,
+        record_failure_metrics=False,
+    )
+    request.state.metrics_recorded = True
+    log.info(
+        "response_sent",
+        service="api",
+        latency_ms=result.latency_ms,
+        tokens_in=result.tokens_in,
+        tokens_out=result.tokens_out,
+        cost_usd=result.cost_usd,
+        payload={
+            "intent": intent,
+            "answer_preview": summarize_text(result.answer),
+            "trace_id": result.trace_id,
+            "trace_url": result.trace_url,
+        },
+    )
+    return ChatResponse(
+        answer=result.answer,
+        correlation_id=request.state.correlation_id,
+        latency_ms=result.latency_ms,
+        tokens_in=result.tokens_in,
+        tokens_out=result.tokens_out,
+        cost_usd=result.cost_usd,
+        quality_score=result.quality_score,
+    )
 
 
 @app.post("/incidents/{name}/enable")
