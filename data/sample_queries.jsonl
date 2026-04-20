@@ -1,10 +1,9 @@
-{"user_id":"u01","session_id":"s01","feature":"qa","message":"What is your refund policy? My email is student@vinuni.edu.vn"}
-{"user_id":"u02","session_id":"s02","feature":"qa","message":"Explain why metrics traces and logs work together"}
-{"user_id":"u03","session_id":"s03","feature":"summary","message":"Summarize the monitoring policy for production logging"}
-{"user_id":"u04","session_id":"s04","feature":"qa","message":"Can I get help with policy and monitoring?"}
-{"user_id":"u05","session_id":"s05","feature":"qa","message":"Here is my phone 0987654321, what should be logged?"}
-{"user_id":"u06","session_id":"s06","feature":"summary","message":"Give me a short summary of the observability workflow"}
-{"user_id":"u07","session_id":"s07","feature":"qa","message":"What should not appear in app logs?"}
-{"user_id":"u08","session_id":"s08","feature":"qa","message":"How do I debug tail latency?"}
-{"user_id":"u09","session_id":"s09","feature":"qa","message":"What is the policy for PII and credit card 4111 1111 1111 1111?"}
-{"user_id":"u10","session_id":"s10","feature":"qa","message":"How should alerts be designed?"}
+{"user_id":"u01","session_id":"s01","feature":"returns","message":"Tôi muốn hoàn tiền cho đơn hàng bị lỗi. Chính sách đổi trả như thế nào?"}
+{"user_id":"u02","session_id":"s02","feature":"order_status","message":"Cho tôi kiểm tra trạng thái đơn hàng và thời gian giao dự kiến."}
+{"user_id":"u03","session_id":"s03","feature":"shipping","message":"Phí vận chuyển tiêu chuẩn là bao nhiêu và giao hàng mất mấy ngày?"}
+{"user_id":"u05","session_id":"s05","feature":"returns","message":"Email của tôi là student@vinuni.edu.vn, tôi cần hỗ trợ hoàn tiền."}
+{"user_id":"u06","session_id":"s06","feature":"shipping","message":"Vui lòng gọi cho tôi qua số 0987654321 vì đơn hàng giao chậm."}
+{"user_id":"u07","session_id":"s07","feature":"order_status","message":"Mã vận đơn: VN1234ABCD của tôi chưa cập nhật, vui lòng kiểm tra giúp."}
+{"user_id":"u08","session_id":"s08","feature":"returns","message":"Số tài khoản: 123456789012, nếu được hãy hoàn tiền vào đây."}
+{"user_id":"u09","session_id":"s09","feature":"payment","message":"Tôi đã nhập cvv: 123 nhưng giao dịch vẫn thất bại."}
+{"user_id":"u10","session_id":"s10","feature":"support","message":"Tôi cần hỗ trợ sau mua hàng, shop có các kênh CSKH nào?"}

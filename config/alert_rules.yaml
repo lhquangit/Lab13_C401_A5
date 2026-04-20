@@ -3,17 +3,23 @@ alerts:
     severity: P2
     condition: latency_p95_ms > 5000 for 30m
     type: symptom-based
-    owner: team-oncall
+    owner: cskh-bot-oncall
     runbook: docs/alerts.md#1-high-latency-p95
+    business_impact: Customers wait too long for refund or order-status answers.
+    mapped_incident: rag_slow
   - name: high_error_rate
     severity: P1
     condition: error_rate_pct > 5 for 5m
     type: symptom-based
-    owner: team-oncall
+    owner: cskh-bot-oncall
     runbook: docs/alerts.md#2-high-error-rate
+    business_impact: Chatbot fails to answer refund, shipping, or payment requests.
+    mapped_incident: tool_fail
   - name: cost_budget_spike
     severity: P2
     condition: hourly_cost_usd > 2x_baseline for 15m
     type: symptom-based
-    owner: finops-owner
+    owner: cskh-bot-finops
     runbook: docs/alerts.md#3-cost-budget-spike
+    business_impact: Support-bot operating cost spikes above the daily budget.
+    mapped_incident: cost_spike

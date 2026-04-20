@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Callable
 
 try:
     from langfuse.decorators import observe, langfuse_context
 except Exception:  # pragma: no cover
     def observe(*args: Any, **kwargs: Any):
-        def decorator(func):
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             return func
+
         return decorator
 
     class _DummyContext:
@@ -19,6 +20,10 @@ except Exception:  # pragma: no cover
             return None
 
     langfuse_context = _DummyContext()
+
+
+def observe_step(name: str):
+    return observe(name=name)
 
 
 def tracing_enabled() -> bool:
